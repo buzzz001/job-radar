@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Radar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root{
+    --paper:#16181a;
+    --ink:#ece9e2;
+    --ink-soft:#9a978d;
+    --line:#33352f;
+    --rust:#e2703a;
+    --rust-soft:#3a2a1e;
+    --green:#5fae8f;
+    --green-soft:#1e332b;
+    --gold:#d4ac4a;
+    --gold-soft:#332b18;
+    --grey-soft:#26282a;
+    --card-bg:#1e2022;
+  }
+  :root[data-theme="light"]{
+    --paper:#f4f2ec;
+    --ink:#1c2321;
+    --ink-soft:#5b5a53;
+    --line:#dcd8cc;
+    --rust:#c1440e;
+    --rust-soft:#f2d9cc;
+    --green:#2d5c4b;
+    --green-soft:#dbe6df;
+    --gold:#a3791a;
+    --gold-soft:#efe3c4;
+    --grey-soft:#e7e4da;
+    --card-bg:#fffffe;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 20px 80px;}
+
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    flex-wrap:wrap;
+    gap:16px;
+    border-bottom:2px solid var(--ink);
+    padding-bottom:18px;
+    margin-bottom:24px;
+  }
+  .title-block h1{
+    font-family:'Bricolage Grotesque',sans-serif;
+    font-size:30px;
+    font-weight:700;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  .title-block .sub{
+    font-family:'Inter',sans-serif;
+    font-size:12px;
+    color:var(--ink-soft);
+    margin-top:4px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+  #lastUpdated{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-soft);text-align:right;}
+  #lastUpdated span{display:block;color:var(--ink);font-weight:600;font-size:13px;}
+
+  .stats{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:1px;
+    background:var(--line);
+    border:1px solid var(--line);
+    margin-bottom:24px;
+  }
+  .stat{
+    background:var(--card-bg);
+    padding:14px 16px;
+  }
+  .stat .num{font-family:'Bricolage Grotesque',sans-serif;font-size:26px;font-weight:700;line-height:1;}
+  .stat .lbl{font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-soft);margin-top:6px;}
+  .stat.strong .num{color:var(--green);}
+  .stat.urgent .num{color:var(--rust);}
+
+  .controls{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:center;
+    margin-bottom:20px;
+  }
+  .controls input[type=text]{
+    flex:1;
+    min-width:180px;
+    padding:9px 12px;
+    border:1.5px solid var(--ink);
+    background:var(--card-bg);
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+    border-radius:2px;
+  }
+  select{
+    padding:9px 10px;
+    border:1.5px solid var(--ink);
+    background:var(--card-bg);
+    font-family:'Inter',sans-serif;
+    font-size:12px;
+    border-radius:2px;
+    color:var(--ink);
+  }
+  .refresh-btn{
+    padding:9px 16px;
+    border:1.5px solid var(--ink);
+    background:var(--ink);
+    color:var(--paper);
+    font-family:'Inter',sans-serif;
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    border-radius:2px;
+    cursor:pointer;
+  }
+  .refresh-btn:hover{background:#000;}
+  .refresh-btn:disabled{opacity:0.5;cursor:default;}
+
+  .tier-section{margin-bottom:28px;}
+  .tier-head{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:10px;
+  }
+  .tier-head h2{
+    font-family:'Bricolage Grotesque',sans-serif;
+    font-size:15px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    margin:0;
+  }
+  .tier-count{
+    font-family:'Inter',sans-serif;
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+  .tier-head .bar{flex:1;height:1px;background:var(--line);}
+
+  .job-card{
+    display:grid;
+    grid-template-columns:auto 1fr auto auto;
+    gap:14px;
+    align-items:center;
+    background:var(--card-bg);
+    border:1px solid var(--line);
+    border-left:4px solid var(--grey-soft);
+    padding:13px 16px;
+    margin-bottom:6px;
+    border-radius:2px;
+  }
+  .job-card.tier-1{border-left-color:var(--green);}
+  .job-card.tier-2{border-left-color:var(--gold);}
+  .job-card.tier-3{border-left-color:var(--ink-soft);}
+
+  .fresh-badge{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    font-weight:600;
+    padding:4px 7px;
+    border-radius:3px;
+    white-space:nowrap;
+    text-align:center;
+    min-width:64px;
+  }
+  .fresh-new{background:var(--rust-soft);color:var(--rust);}
+  .fresh-recent{background:var(--gold-soft);color:var(--gold);}
+  .fresh-old{background:var(--grey-soft);color:var(--ink-soft);}
+
+  .job-main a{
+    font-family:'Bricolage Grotesque',sans-serif;
+    font-size:15px;
+    font-weight:600;
+    color:var(--ink);
+    text-decoration:none;
+  }
+  .job-main a:hover{text-decoration:underline;}
+  .job-meta{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin-top:3px;
+  }
+  .job-meta .src{
+    font-family:'Inter',sans-serif;
+    font-size:10.5px;
+    background:var(--grey-soft);
+    padding:1px 6px;
+    border-radius:2px;
+    margin-right:6px;
+    text-transform:uppercase;
+  }
+
+  .score-block{
+    text-align:right;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .score-block .overall{font-size:17px;font-weight:600;}
+  .score-block .breakdown{font-size:10px;color:var(--ink-soft);margin-top:2px;}
+
+  .apply-btn{
+    font-family:'Inter',sans-serif;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.03em;
+    padding:7px 12px;
+    background:var(--ink);
+    color:var(--paper);
+    text-decoration:none;
+    border-radius:2px;
+    white-space:nowrap;
+  }
+  .apply-btn:hover{background:#000;}
+
+  .empty, .loading, .error{
+    text-align:center;
+    padding:60px 20px;
+    color:var(--ink-soft);
+    font-family:'JetBrains Mono',monospace;
+    font-size:13px;
+  }
+  .error{color:var(--rust);}
+  .error code{display:block;margin-top:10px;font-size:11px;background:var(--card-bg);padding:12px;border:1px solid var(--line);text-align:left;white-space:pre-wrap;}
+
+  @media (max-width:640px){
+    .stats{grid-template-columns:repeat(2,1fr);}
+    .job-card{grid-template-columns:1fr;text-align:left;}
+    .score-block{text-align:left;}
+    header{flex-direction:column;align-items:flex-start;}
+    #lastUpdated{text-align:left;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="title-block">
+      <h1>Job Radar</h1>
+      <div class="sub">Live feed &middot; Greenhouse / Lever / Ashby / Workable + tracked sources</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div id="lastUpdated">Last checked<span id="lastUpdatedTime">—</span></div>
+      <button id="themeToggle" class="refresh-btn" style="background:transparent;color:var(--ink);" title="Toggle light/dark">☀</button>
+    </div>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><div class="num" id="statTotal">–</div><div class="lbl">Total open</div></div>
+    <div class="stat urgent"><div class="num" id="statNew">–</div><div class="lbl">New (24h)</div></div>
+    <div class="stat strong"><div class="num" id="statTier1">–</div><div class="lbl">Strong matches</div></div>
+    <div class="stat"><div class="num" id="statSources">–</div><div class="lbl">Sources</div></div>
+  </div>
+
+  <div class="controls">
+    <input type="text" id="searchBox" placeholder="Search company or title…">
+    <select id="sourceFilter"><option value="">All sources</option></select>
+    <select id="freshFilter">
+      <option value="">Any time</option>
+      <option value="24">Last 24h</option>
+      <option value="72">Last 3 days</option>
+      <option value="168">Last 7 days</option>
+    </select>
+    <button class="refresh-btn" id="refreshBtn">Refresh</button>
+  </div>
+
+  <div id="content"><div class="loading">Loading postings…</div></div>
+
+</div>
+
+<script>
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1DvuHAINnNN9dWTEaDCJavTQoG2JH3kMXKnZjGDUPlbb7M73AoScI9_C2PskvrFFI1yM1wM0Ped8f/pub?gid=541233556&single=true&output=csv";
+
+let allJobs = [];
+
+function parseDate(str){
+  if(!str) return null;
+  const d = new Date(str);
+  return isNaN(d) ? null : d;
+}
+
+function hoursAgo(date){
+  if(!date) return null;
+  return (Date.now() - date.getTime()) / 36e5;
+}
+
+function freshBadge(hrs){
+  if(hrs === null) return '<span class="fresh-badge fresh-old">—</span>';
+  if(hrs < 24) return `<span class="fresh-badge fresh-new">${hrs < 1 ? '<1h' : Math.round(hrs)+'h'} ago</span>`;
+  if(hrs < 72) return `<span class="fresh-badge fresh-recent">${Math.round(hrs/24)}d ago</span>`;
+  return `<span class="fresh-badge fresh-old">${Math.round(hrs/24)}d ago</span>`;
+}
+
+function tierClass(tier){
+  const t = (tier||'').toString().toLowerCase();
+  if(t.includes('1') || t.includes('strong') || t.includes('high')) return 'tier-1';
+  if(t.includes('2') || t.includes('med')) return 'tier-2';
+  return 'tier-3';
+}
+
+function tierLabel(tier){
+  const t = (tier||'').toString().toLowerCase();
+  if(t.includes('1') || t.includes('strong') || t.includes('high')) return 'Strong match';
+  if(t.includes('2') || t.includes('med')) return 'Possible fit';
+  return 'Lower priority';
+}
+
+function render(){
+  const search = document.getElementById('searchBox').value.toLowerCase();
+  const sourceVal = document.getElementById('sourceFilter').value;
+  const freshVal = document.getElementById('freshFilter').value;
+
+  let filtered = allJobs.filter(j => {
+    if(search && !(`${j.company} ${j.title}`.toLowerCase().includes(search))) return false;
+    if(sourceVal && j.source_type !== sourceVal) return false;
+    if(freshVal){
+      const hrs = hoursAgo(j.publishedDate || j.run_dateDate);
+      if(hrs === null || hrs > parseFloat(freshVal)) return false;
+    }
+    return true;
+  });
+
+  // stats (computed on unfiltered set for totals, filtered doesn't affect top stats)
+  document.getElementById('statTotal').textContent = allJobs.length;
+  document.getElementById('statNew').textContent = allJobs.filter(j => {
+    const hrs = hoursAgo(j.publishedDate || j.run_dateDate);
+    return hrs !== null && hrs < 24;
+  }).length;
+  document.getElementById('statTier1').textContent = allJobs.filter(j => tierClass(j.tier) === 'tier-1').length;
+  document.getElementById('statSources').textContent = new Set(allJobs.map(j=>j.company)).size;
+
+  const content = document.getElementById('content');
+  if(filtered.length === 0){
+    content.innerHTML = `<div class="empty">No postings match right now. Try widening your filters, or check back after the next run.</div>`;
+    return;
+  }
+
+  filtered.sort((a,b) => (parseFloat(b.overall_score)||0) - (parseFloat(a.overall_score)||0));
+
+  const groups = {'tier-1':[], 'tier-2':[], 'tier-3':[]};
+  filtered.forEach(j => groups[tierClass(j.tier)].push(j));
+
+  let html = '';
+  ['tier-1','tier-2','tier-3'].forEach(tc => {
+    if(groups[tc].length === 0) return;
+    html += `<div class="tier-section">
+      <div class="tier-head">
+        <h2>${tierLabel(tc==='tier-1'?'1':tc==='tier-2'?'2':'3')}</h2>
+        <span class="tier-count">${groups[tc].length}</span>
+        <div class="bar"></div>
+      </div>`;
+    groups[tc].forEach(j => {
+      const hrs = hoursAgo(j.publishedDate || j.run_dateDate);
+      html += `<div class="job-card ${tc}">
+        ${freshBadge(hrs)}
+        <div class="job-main">
+          <a href="${j.url||'#'}" target="_blank" rel="noopener">${escapeHtml(j.title||'Untitled role')}</a>
+          <div class="job-meta"><span class="src">${escapeHtml(j.source_type||'—')}</span>${escapeHtml(j.company||'')}${j.location ? ' · ' + escapeHtml(j.location) : ''}</div>
+        </div>
+        <div class="score-block">
+          <div class="overall">${j.overall_score||'—'}</div>
+          <div class="breakdown">AI ${j.ai_score||'–'} · BI ${j.bi_score||'–'} · Ops ${j.ops_score||'–'}</div>
+        </div>
+        <a class="apply-btn" href="${j.url||'#'}" target="_blank" rel="noopener">View →</a>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+
+  content.innerHTML = html;
+}
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function populateSourceFilter(){
+  const sel = document.getElementById('sourceFilter');
+  const sources = [...new Set(allJobs.map(j => j.source_type).filter(Boolean))].sort();
+  sources.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s;
+    opt.textContent = s;
+    sel.appendChild(opt);
+  });
+}
+
+function loadData(){
+  document.getElementById('refreshBtn').disabled = true;
+  document.getElementById('refreshBtn').textContent = 'Loading…';
+  document.getElementById('content').innerHTML = '<div class="loading">Loading postings…</div>';
+
+  Papa.parse(CSV_URL, {
+    download: true,
+    header: true,
+    skipEmptyLines: true,
+    complete: function(results) {
+      allJobs = results.data.map(row => ({
+        ...row,
+        publishedDate: parseDate(row.published),
+        run_dateDate: parseDate(row.run_date)
+      })).filter(j => j.title || j.company);
+
+      populateSourceFilter();
+      render();
+
+      const now = new Date();
+      document.getElementById('lastUpdatedTime').textContent = now.toLocaleString(undefined, {
+        month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'
+      });
+      document.getElementById('refreshBtn').disabled = false;
+      document.getElementById('refreshBtn').textContent = 'Refresh';
+    },
+    error: function(err) {
+      document.getElementById('content').innerHTML = `<div class="error">Couldn't load the sheet.<code>${err.message || err}</code>Check that the sheet is shared as "Anyone with the link can view", and that the tab name / gid is correct.</div>`;
+      document.getElementById('refreshBtn').disabled = false;
+      document.getElementById('refreshBtn').textContent = 'Refresh';
+    }
+  });
+}
+
+document.getElementById('themeToggle').addEventListener('click', function(){
+  const root = document.documentElement;
+  const isLight = root.getAttribute('data-theme') === 'light';
+  if(isLight){
+    root.removeAttribute('data-theme');
+    this.textContent = '☀';
+  } else {
+    root.setAttribute('data-theme', 'light');
+    this.textContent = '☾';
+  }
+});
+
+document.getElementById('refreshBtn').addEventListener('click', loadData);
+document.getElementById('searchBox').addEventListener('input', render);
+document.getElementById('sourceFilter').addEventListener('change', render);
+document.getElementById('freshFilter').addEventListener('change', render);
+
+loadData();
+</script>
+</body>
+</html>
