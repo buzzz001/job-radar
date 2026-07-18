@@ -228,6 +228,32 @@
   }
   .apply-btn:hover{background:#000;}
 
+  .status-row{
+    grid-column:1 / -1;
+    display:flex;
+    gap:6px;
+    margin-top:8px;
+    padding-top:8px;
+    border-top:1px solid var(--line);
+  }
+  .status-btn{
+    font-family:'Inter',sans-serif;
+    font-size:11.5px;
+    font-weight:500;
+    padding:5px 10px;
+    border:1px solid var(--line);
+    background:transparent;
+    color:var(--ink-soft);
+    border-radius:3px;
+    cursor:pointer;
+  }
+  .status-btn:hover{border-color:var(--ink);color:var(--ink);}
+  .status-btn.active-applied{background:var(--green);border-color:var(--green);color:#fff;}
+  .status-btn.active-saved{background:var(--gold);border-color:var(--gold);color:#1c2321;}
+  .status-btn.active-notforme{background:var(--rust);border-color:var(--rust);color:#fff;}
+  .job-card{grid-template-columns:auto 1fr auto auto;}
+  .job-card.has-status-row{grid-template-rows:auto auto;}
+
   .empty, .loading, .error{
     text-align:center;
     padding:60px 20px;
@@ -277,6 +303,13 @@
       <option value="72">Last 3 days</option>
       <option value="168">Last 7 days</option>
     </select>
+    <select id="statusFilter">
+      <option value="">All statuses</option>
+      <option value="__new__">Not yet reviewed</option>
+      <option value="Applied">Applied</option>
+      <option value="Saved">Saved</option>
+      <option value="Not for me">Not for me</option>
+    </select>
     <button class="refresh-btn" id="refreshBtn">Refresh</button>
   </div>
 
@@ -286,6 +319,9 @@
 
 <script>
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1DvuHAINnNN9dWTEaDCJavTQoG2JH3kMXKnZjGDUPlbb7M73AoScI9_C2PskvrFFI1yM1wM0Ped8f/pub?gid=541233556&single=true&output=csv";
+// PASTE your Apps Script Web App URL here once deployed (see setup instructions):
+const STATUS_WRITER_URL = "https://script.google.com/macros/s/AKfycbwMVvKi8lAFH-ZYXzFxE3Lzywo6YPg1_amNVlMz3w3QoT3wAx7r-kvgFuvjq1C-aCGj/exec";
+const localStatusOverrides = {}; // url -> status, so UI updates instantly without waiting on a fresh sheet fetch
 
 let allJobs = [];
 
@@ -326,6 +362,8 @@ function render(){
   const sourceVal = document.getElementById('sourceFilter').value;
   const freshVal = document.getElementById('freshFilter').value;
 
+  const statusVal = document.getElementById('statusFilter').value;
+
   let filtered = allJobs.filter(j => {
     if(search && !(`${j.company} ${j.title}`.toLowerCase().includes(search))) return false;
     if(sourceVal && j.source_type !== sourceVal) return false;
@@ -333,6 +371,9 @@ function render(){
       const hrs = hoursAgo(j.publishedDate || j.run_dateDate);
       if(hrs === null || hrs > parseFloat(freshVal)) return false;
     }
+    const currentStatus = localStatusOverrides[j.url] || j.status || '';
+    if(statusVal === '__new__' && currentStatus) return false;
+    if(statusVal && statusVal !== '__new__' && currentStatus !== statusVal) return false;
     return true;
   });
 
@@ -367,7 +408,9 @@ function render(){
       </div>`;
     groups[tc].forEach(j => {
       const hrs = hoursAgo(j.publishedDate || j.run_dateDate);
-      html += `<div class="job-card ${tc}">
+      const currentStatus = localStatusOverrides[j.url] || j.status || '';
+      const safeUrl = escapeHtml(j.url||'');
+      html += `<div class="job-card has-status-row ${tc}">
         ${freshBadge(hrs)}
         <div class="job-main">
           <a href="${j.url||'#'}" target="_blank" rel="noopener">${escapeHtml(j.title||'Untitled role')}</a>
@@ -378,12 +421,37 @@ function render(){
           <div class="breakdown">AI ${j.ai_score||'–'} · BI ${j.bi_score||'–'} · Ops ${j.ops_score||'–'}</div>
         </div>
         <a class="apply-btn" href="${j.url||'#'}" target="_blank" rel="noopener">View →</a>
+        <div class="status-row">
+          <button class="status-btn ${currentStatus==='Applied'?'active-applied':''}" onclick="setStatus('${safeUrl}','Applied',this)">Applied</button>
+          <button class="status-btn ${currentStatus==='Saved'?'active-saved':''}" onclick="setStatus('${safeUrl}','Saved',this)">Saved</button>
+          <button class="status-btn ${currentStatus==='Not for me'?'active-notforme':''}" onclick="setStatus('${safeUrl}','Not for me',this)">Not for me</button>
+          ${currentStatus ? `<button class="status-btn" onclick="setStatus('${safeUrl}','',this)">Clear</button>` : ''}
+        </div>
       </div>`;
     });
     html += `</div>`;
   });
 
   content.innerHTML = html;
+}
+
+function setStatus(url, status, btnEl){
+  localStatusOverrides[url] = status;
+  render(); // instant UI update, doesn't wait on network
+
+  if(!STATUS_WRITER_URL || STATUS_WRITER_URL.indexOf('PASTE_YOUR') === 0){
+    console.warn('Status writer not configured yet — change is only local, not saved to sheet.');
+    return;
+  }
+
+  fetch(STATUS_WRITER_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ url: url, status: status })
+  }).catch(err => {
+    console.error('Failed to save status to sheet:', err);
+  });
 }
 
 function escapeHtml(str){
@@ -453,6 +521,7 @@ document.getElementById('refreshBtn').addEventListener('click', loadData);
 document.getElementById('searchBox').addEventListener('input', render);
 document.getElementById('sourceFilter').addEventListener('change', render);
 document.getElementById('freshFilter').addEventListener('change', render);
+document.getElementById('statusFilter').addEventListener('change', render);
 
 loadData();
 </script>
