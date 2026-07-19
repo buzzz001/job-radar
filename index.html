@@ -154,21 +154,31 @@
   }
   .tier-head .bar{flex:1;height:1px;background:var(--line);}
 
-  .job-card{
+  .job-grid{
     display:grid;
-    grid-template-columns:auto 1fr auto auto;
-    gap:14px;
-    align-items:center;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+  .job-card{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
     background:var(--card-bg);
     border:1px solid var(--line);
     border-left:4px solid var(--grey-soft);
-    padding:13px 16px;
-    margin-bottom:6px;
+    padding:13px 15px;
     border-radius:2px;
   }
   .job-card.tier-1{border-left-color:var(--green);}
   .job-card.tier-2{border-left-color:var(--gold);}
   .job-card.tier-3{border-left-color:var(--ink-soft);}
+
+  .job-card-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:8px;
+  }
 
   .fresh-badge{
     font-family:'JetBrains Mono',monospace;
@@ -190,8 +200,12 @@
     font-weight:600;
     color:var(--ink);
     text-decoration:none;
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
   }
   .job-main a:hover{text-decoration:underline;}
+  .job-main a .link-icon{font-size:12px;opacity:0.6;}
   .job-meta{
     font-size:12.5px;
     color:var(--ink-soft);
@@ -210,31 +224,18 @@
   .score-block{
     text-align:right;
     font-family:'JetBrains Mono',monospace;
+    flex-shrink:0;
   }
   .score-block .overall{font-size:17px;font-weight:600;}
   .score-block .breakdown{font-size:10px;color:var(--ink-soft);margin-top:2px;}
 
-  .apply-btn{
-    font-family:'Inter',sans-serif;
-    font-size:11px;
-    text-transform:uppercase;
-    letter-spacing:0.03em;
-    padding:7px 12px;
-    background:var(--ink);
-    color:var(--paper);
-    text-decoration:none;
-    border-radius:2px;
-    white-space:nowrap;
-  }
-  .apply-btn:hover{background:#000;}
-
   .status-row{
-    grid-column:1 / -1;
     display:flex;
     gap:6px;
-    margin-top:8px;
+    margin-top:4px;
     padding-top:8px;
     border-top:1px solid var(--line);
+    flex-wrap:wrap;
   }
   .status-btn{
     font-family:'Inter',sans-serif;
@@ -251,8 +252,6 @@
   .status-btn.active-applied{background:var(--green);border-color:var(--green);color:#fff;}
   .status-btn.active-saved{background:var(--gold);border-color:var(--gold);color:#1c2321;}
   .status-btn.active-notforme{background:var(--rust);border-color:var(--rust);color:#fff;}
-  .job-card{grid-template-columns:auto 1fr auto auto;}
-  .job-card.has-status-row{grid-template-rows:auto auto;}
 
   .empty, .loading, .error{
     text-align:center;
@@ -266,7 +265,7 @@
 
   @media (max-width:640px){
     .stats{grid-template-columns:repeat(2,1fr);}
-    .job-card{grid-template-columns:1fr;text-align:left;}
+    .job-grid{grid-template-columns:1fr;}
     .score-block{text-align:left;}
     header{flex-direction:column;align-items:flex-start;}
     #lastUpdated{text-align:left;}
@@ -296,7 +295,12 @@
 
   <div class="controls">
     <input type="text" id="searchBox" placeholder="Search company or title…">
-    <select id="sourceFilter"><option value="">All sources</option></select>
+    <select id="categoryFilter">
+      <option value="overall">Best overall fit</option>
+      <option value="ai_score">AI Ops fit, high to low</option>
+      <option value="bi_score">BI fit, high to low</option>
+      <option value="ops_score">Ops fit, high to low</option>
+    </select>
     <select id="freshFilter">
       <option value="">Any time</option>
       <option value="24">Last 24h</option>
@@ -359,14 +363,12 @@ function tierLabel(tier){
 
 function render(){
   const search = document.getElementById('searchBox').value.toLowerCase();
-  const sourceVal = document.getElementById('sourceFilter').value;
+  const categoryVal = document.getElementById('categoryFilter').value;
   const freshVal = document.getElementById('freshFilter').value;
-
   const statusVal = document.getElementById('statusFilter').value;
 
   let filtered = allJobs.filter(j => {
     if(search && !(`${j.company} ${j.title}`.toLowerCase().includes(search))) return false;
-    if(sourceVal && j.source_type !== sourceVal) return false;
     if(freshVal){
       const hrs = hoursAgo(j.publishedDate || j.run_dateDate);
       if(hrs === null || hrs > parseFloat(freshVal)) return false;
@@ -377,7 +379,6 @@ function render(){
     return true;
   });
 
-  // stats (computed on unfiltered set for totals, filtered doesn't affect top stats)
   document.getElementById('statTotal').textContent = allJobs.length;
   document.getElementById('statNew').textContent = allJobs.filter(j => {
     const hrs = hoursAgo(j.publishedDate || j.run_dateDate);
@@ -392,47 +393,66 @@ function render(){
     return;
   }
 
-  filtered.sort((a,b) => (parseFloat(b.overall_score)||0) - (parseFloat(a.overall_score)||0));
-
-  const groups = {'tier-1':[], 'tier-2':[], 'tier-3':[]};
-  filtered.forEach(j => groups[tierClass(j.tier)].push(j));
+  const scoreKey = categoryVal === 'overall' ? 'overall_score' : categoryVal;
 
   let html = '';
-  ['tier-1','tier-2','tier-3'].forEach(tc => {
-    if(groups[tc].length === 0) return;
-    html += `<div class="tier-section">
-      <div class="tier-head">
-        <h2>${tierLabel(tc==='tier-1'?'1':tc==='tier-2'?'2':'3')}</h2>
-        <span class="tier-count">${groups[tc].length}</span>
-        <div class="bar"></div>
-      </div>`;
-    groups[tc].forEach(j => {
-      const hrs = hoursAgo(j.publishedDate || j.run_dateDate);
-      const currentStatus = localStatusOverrides[j.url] || j.status || '';
-      const safeUrl = escapeHtml(j.url||'');
-      html += `<div class="job-card has-status-row ${tc}">
-        ${freshBadge(hrs)}
-        <div class="job-main">
-          <a href="${j.url||'#'}" target="_blank" rel="noopener">${escapeHtml(j.title||'Untitled role')}</a>
-          <div class="job-meta"><span class="src">${escapeHtml(j.source_type||'—')}</span>${escapeHtml(j.company||'')}${j.location ? ' · ' + escapeHtml(j.location) : ''}</div>
+
+  if(categoryVal === 'overall'){
+    filtered.sort((a,b) => (parseFloat(b.overall_score)||0) - (parseFloat(a.overall_score)||0));
+    const groups = {'tier-1':[], 'tier-2':[], 'tier-3':[]};
+    filtered.forEach(j => groups[tierClass(j.tier)].push(j));
+
+    ['tier-1','tier-2','tier-3'].forEach(tc => {
+      if(groups[tc].length === 0) return;
+      html += `<div class="tier-section">
+        <div class="tier-head">
+          <h2>${tierLabel(tc==='tier-1'?'1':tc==='tier-2'?'2':'3')}</h2>
+          <span class="tier-count">${groups[tc].length}</span>
+          <div class="bar"></div>
         </div>
-        <div class="score-block">
-          <div class="overall">${j.overall_score||'—'}</div>
-          <div class="breakdown">AI ${j.ai_score||'–'} · BI ${j.bi_score||'–'} · Ops ${j.ops_score||'–'}</div>
-        </div>
-        <a class="apply-btn" href="${j.url||'#'}" target="_blank" rel="noopener">View →</a>
-        <div class="status-row">
-          <button class="status-btn ${currentStatus==='Applied'?'active-applied':''}" onclick="setStatus('${safeUrl}','Applied',this)">Applied</button>
-          <button class="status-btn ${currentStatus==='Saved'?'active-saved':''}" onclick="setStatus('${safeUrl}','Saved',this)">Saved</button>
-          <button class="status-btn ${currentStatus==='Not for me'?'active-notforme':''}" onclick="setStatus('${safeUrl}','Not for me',this)">Not for me</button>
-          ${currentStatus ? `<button class="status-btn" onclick="setStatus('${safeUrl}','',this)">Clear</button>` : ''}
-        </div>
+        <div class="job-grid">${groups[tc].map(j => jobCardHtml(j, tc)).join('')}</div>
       </div>`;
     });
-    html += `</div>`;
-  });
+  } else {
+    // Flat, sorted purely by the chosen category score, no tier grouping
+    filtered.sort((a,b) => (parseFloat(b[scoreKey])||0) - (parseFloat(a[scoreKey])||0));
+    const label = categoryVal === 'ai_score' ? 'AI Ops fit' : categoryVal === 'bi_score' ? 'BI fit' : 'Ops fit';
+    html += `<div class="tier-section">
+      <div class="tier-head">
+        <h2>Sorted by ${label}</h2>
+        <span class="tier-count">${filtered.length}</span>
+        <div class="bar"></div>
+      </div>
+      <div class="job-grid">${filtered.map(j => jobCardHtml(j, tierClass(j.tier))).join('')}</div>
+    </div>`;
+  }
 
   content.innerHTML = html;
+}
+
+function jobCardHtml(j, tc){
+  const hrs = hoursAgo(j.publishedDate || j.run_dateDate);
+  const currentStatus = localStatusOverrides[j.url] || j.status || '';
+  const safeUrl = escapeHtml(j.url||'');
+  return `<div class="job-card ${tc}">
+    <div class="job-card-top">
+      ${freshBadge(hrs)}
+      <div class="score-block">
+        <div class="overall">${j.overall_score||'—'}</div>
+        <div class="breakdown">AI ${j.ai_score||'–'} · BI ${j.bi_score||'–'} · Ops ${j.ops_score||'–'}</div>
+      </div>
+    </div>
+    <div class="job-main">
+      <a href="${j.url||'#'}" target="_blank" rel="noopener">${escapeHtml(j.title||'Untitled role')}<span class="link-icon">↗</span></a>
+      <div class="job-meta"><span class="src">${escapeHtml(j.source_type||'—')}</span>${escapeHtml(j.company||'')}${j.location ? ' · ' + escapeHtml(j.location) : ''}</div>
+    </div>
+    <div class="status-row">
+      <button class="status-btn ${currentStatus==='Applied'?'active-applied':''}" onclick="setStatus('${safeUrl}','Applied',this)">Applied</button>
+      <button class="status-btn ${currentStatus==='Saved'?'active-saved':''}" onclick="setStatus('${safeUrl}','Saved',this)">Saved</button>
+      <button class="status-btn ${currentStatus==='Not for me'?'active-notforme':''}" onclick="setStatus('${safeUrl}','Not for me',this)">Not for me</button>
+      ${currentStatus ? `<button class="status-btn" onclick="setStatus('${safeUrl}','',this)">Clear</button>` : ''}
+    </div>
+  </div>`;
 }
 
 function setStatus(url, status, btnEl){
@@ -460,17 +480,6 @@ function escapeHtml(str){
   return d.innerHTML;
 }
 
-function populateSourceFilter(){
-  const sel = document.getElementById('sourceFilter');
-  const sources = [...new Set(allJobs.map(j => j.source_type).filter(Boolean))].sort();
-  sources.forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s;
-    opt.textContent = s;
-    sel.appendChild(opt);
-  });
-}
-
 function loadData(){
   document.getElementById('refreshBtn').disabled = true;
   document.getElementById('refreshBtn').textContent = 'Loading…';
@@ -487,7 +496,6 @@ function loadData(){
         run_dateDate: parseDate(row.run_date)
       })).filter(j => j.title || j.company);
 
-      populateSourceFilter();
       render();
 
       const now = new Date();
@@ -519,7 +527,7 @@ document.getElementById('themeToggle').addEventListener('click', function(){
 
 document.getElementById('refreshBtn').addEventListener('click', loadData);
 document.getElementById('searchBox').addEventListener('input', render);
-document.getElementById('sourceFilter').addEventListener('change', render);
+document.getElementById('categoryFilter').addEventListener('change', render);
 document.getElementById('freshFilter').addEventListener('change', render);
 document.getElementById('statusFilter').addEventListener('change', render);
 
