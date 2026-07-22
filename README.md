@@ -42,3 +42,13 @@ I built it to speed up my job-hunting process, while also learning workflow auto
 - Improve duplicate detection
 - Resume-to-job matching
 - Enhanced filtering and analytics
+
+---
+
+## Future README Improvements
+
+- [ ] Add architecture diagram
+- [ ] Add n8n workflow screenshots
+- [ ] Add Google Sheets backend screenshots
+- [ ] Move images into `/images` folder
+- [ ] Improve project documentation
