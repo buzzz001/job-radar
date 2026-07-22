@@ -3,7 +3,7 @@
 
 🔗 **Live Demo:** [Job Radar](https://buzzz001.github.io/job-radar/)
 
-![Job Radar Dashboard](dashboard.png)
+![Job Radar Dashboard](Dashboard.png)
 
 ---
 
